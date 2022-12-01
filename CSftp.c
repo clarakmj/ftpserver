@@ -77,6 +77,7 @@ void *command_handler(void *threadarg)
     char *argument; // TODO parse
     // put big switch statement
     char reply[BUFFER_SIZE];
+    // TODO implement commands
     switch(command) {
         case USER:
             return user(new_fd, argument);
@@ -101,7 +102,7 @@ void *command_handler(void *threadarg)
             return nlst(argument);
         default:
             strcpy(reply, "500 Server does not support this command");
-            send(new_fd, reply);
+            send(new_fd, reply, sizeof(reply), 0);
     }
     // https://canvas.ubc.ca/courses/101882/pages/tutorial-10-c-server-programming?module_item_id=5116919
     printf("%s", buf);
