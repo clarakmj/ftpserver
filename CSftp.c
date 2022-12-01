@@ -28,6 +28,17 @@ char initialDir[BUFFER_SIZE];
 
 enum FTP_CMD {INVALID = -1, USER, QUIT, CWD, CDUP, TYPE, MODE, STRU, RETR, PASV, NLST};
 
+int user(int fd, char *userid);
+int quit();
+int cwd(int fd, char *path);
+int cdup(int fd, char *initdir);
+int type(int fd, char *rtype);
+int mode(int fd, char *tmode);
+int stru(int fd, char *fs);
+int retr(char *filename);
+int pasv();
+int nlst(char *path);
+
 void sigchld_handler(int s)
 {
     // waitpid() might overwrite errno, so we save and restore it:
@@ -80,29 +91,43 @@ void *command_handler(void *threadarg)
     // TODO implement commands
     switch(command) {
         case USER:
-            return user(new_fd, argument);
+            user(new_fd, argument);
+            break;
         case QUIT:
-            return quit();
+        // maybe if quit cmd, return -1 for exit(0)
+            quit();
+            break;
         case CWD:
-            return cwd(new_fd, argument);
+            cwd(new_fd, argument);
+            break;
         case CDUP:
             getcwd(initialDir, BUFFER_SIZE);
-            return cdup(new_fd, initialDir);
+            cdup(new_fd, initialDir);
+            break;
         case TYPE:
-            return type(new_fd, argument);
+            type(new_fd, argument);
+            break;
         case MODE:
-            return mode(new_fd, argument);
+            mode(new_fd, argument);
+            break;
         case STRU:
-            return stru(new_fd, argument);
+            stru(new_fd, argument);
+            break;
         case RETR:
-            return retr(argument);
+            retr(argument);
+            break;
         case PASV:
-            return pasv();
+            pasv();
+            break;
         case NLST:
-            return nlst(argument);
+            nlst(argument);
+            break;
         default:
             strcpy(reply, "500 Server does not support this command");
-            send(new_fd, reply, sizeof(reply), 0);
+            if (send(new_fd, reply, sizeof(reply), 0)) {
+                perror("send");
+            }
+            break;
     }
     // https://canvas.ubc.ca/courses/101882/pages/tutorial-10-c-server-programming?module_item_id=5116919
     printf("%s", buf);
