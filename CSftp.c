@@ -24,6 +24,10 @@
 #define MAX_NUM_THREADS 10 // max number of child thread connections allowed
 #define BUFFER_SIZE 4096
 
+char initialDir[BUFFER_SIZE];
+
+enum FTP_CMD {INVALID = -1, USER, QUIT, CWD, CDUP, TYPE, MODE, STRU, RETR, PASV, NLST};
+
 void sigchld_handler(int s)
 {
     // waitpid() might overwrite errno, so we save and restore it:
@@ -69,7 +73,36 @@ void *command_handler(void *threadarg)
 
     // test code to echo back to client
     // implement parsing of the buffer into commands and arguments here
+    char *command;
+    char *argument; // TODO parse
     // put big switch statement
+    char reply[BUFFER_SIZE];
+    switch(command) {
+        case USER:
+            return user(new_fd, argument);
+        case QUIT:
+            return quit();
+        case CWD:
+            return cwd(new_fd, argument);
+        case CDUP:
+            getcwd(initialDir, BUFFER_SIZE);
+            return cdup(new_fd, initialDir);
+        case TYPE:
+            return type(new_fd, argument);
+        case MODE:
+            return mode(new_fd, argument);
+        case STRU:
+            return stru(new_fd, argument);
+        case RETR:
+            return retr(argument);
+        case PASV:
+            return pasv();
+        case NLST:
+            return nlst(argument);
+        default:
+            strcpy(reply, "500 Server does not support this command");
+            send(new_fd, reply);
+    }
     // https://canvas.ubc.ca/courses/101882/pages/tutorial-10-c-server-programming?module_item_id=5116919
     printf("%s", buf);
     char echo[BUFFER_SIZE + 6] = "echo: ";
