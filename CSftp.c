@@ -84,7 +84,7 @@ void *command_handler(void *threadarg)
 
     // test code to echo back to client
     // implement parsing of the buffer into commands and arguments here
-    char *command;
+    char command;
     char *argument; // TODO parse
     // put big switch statement
     char reply[BUFFER_SIZE];
@@ -123,7 +123,7 @@ void *command_handler(void *threadarg)
             nlst(argument);
             break;
         default:
-            strcpy(reply, "500 Server does not support this command");
+            strcpy(reply, "500 Syntax error, command unrecognized.\n");
             if (send(new_fd, reply, sizeof(reply), 0)) {
                 perror("send");
             }
@@ -143,6 +143,18 @@ void *command_handler(void *threadarg)
   pthread_exit(NULL);
 }
 
+int user(int fd, char *userid) {
+    char reply[BUFFER_SIZE];
+    
+    if (strcmp(userid, "cs317") == 0) {
+        strcpy(reply, "230 User logged in, proceed.\n");
+    } else {
+        strcpy(reply, "530 Not logged in.\n");
+    }
+
+    send(fd, reply, strlen(reply), 0);
+    return 0;
+}
 
 int main(int argc, char **argv)
 {
