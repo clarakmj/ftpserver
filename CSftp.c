@@ -145,7 +145,7 @@ void *command_handler(void *threadarg)
 
 int user(int fd, char *userid) {
     char reply[BUFFER_SIZE];
-    
+
     if (strcmp(userid, "cs317") == 0) {
         strcpy(reply, "230 User logged in, proceed.\n");
     } else {
@@ -154,6 +154,42 @@ int user(int fd, char *userid) {
 
     send(fd, reply, strlen(reply), 0);
     return 0;
+}
+
+int quit() {
+    // 
+}
+
+int cwd(int fd, char *path) {
+    // 
+}
+
+int cdup(int fd, char *initdir) {
+    //
+}
+
+int type(int fd, char *rtype) {
+    //
+}
+
+int mode(int fd, char *tmode) {
+    //
+}
+
+int stru(int fd, char *fs) {
+    // 
+}
+
+int retr(char *filename) {
+    // 
+}
+
+int pasv() {
+    // 
+}
+
+int nlst(char *path) {
+    //
 }
 
 int main(int argc, char **argv)
