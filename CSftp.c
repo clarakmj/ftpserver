@@ -159,7 +159,15 @@ int user(int fd, char *userid) {
 }
 
 int quit() {
+    char response[BUFFER_SIZE];
+    strcpy(response, "221 Goodbye!");
+
+    if (send(fd, response, strlen(response), 0) == -1) {
+        perror("send");
+    }
     
+    close(new_fd);
+    return -1;
 }
 
 int cwd(int fd, char *path) {
@@ -171,6 +179,8 @@ int cwd(int fd, char *path) {
     if (strcmp(path, "./") == 0 || strcmp(path, "../") == 0) {
         strcpy(response, "550 Requested action not taken. Path cannot be ./ or ../.\n");
     }
+
+    // TODO
 
     if (send(fd, response, strlen(response), 0) == -1) {
         perror("send");
