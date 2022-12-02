@@ -87,7 +87,7 @@ void *command_handler(void *threadarg)
     char command;
     char *argument; // TODO parse
     // put big switch statement
-    char reply[BUFFER_SIZE];
+    char response[BUFFER_SIZE];
     // TODO implement commands
     switch(command) {
         case USER:
@@ -123,8 +123,8 @@ void *command_handler(void *threadarg)
             nlst(argument);
             break;
         default:
-            strcpy(reply, "500 Syntax error, command unrecognized.\n");
-            if (send(new_fd, reply, sizeof(reply), 0)) {
+            strcpy(response, "500 Syntax error, command unrecognized.\n");
+            if (send(new_fd, response, sizeof(response), 0)) {
                 perror("send");
             }
             break;
@@ -144,24 +144,38 @@ void *command_handler(void *threadarg)
 }
 
 int user(int fd, char *userid) {
-    char reply[BUFFER_SIZE];
+    char response[BUFFER_SIZE];
 
     if (strcmp(userid, "cs317") == 0) {
-        strcpy(reply, "230 User logged in, proceed.\n");
+        strcpy(response, "230 User logged in, proceed.\n");
     } else {
-        strcpy(reply, "530 Not logged in.\n");
+        strcpy(response, "530 Not logged in.\n");
     }
 
-    send(fd, reply, strlen(reply), 0);
+    if (send(fd, response, strlen(response), 0) == -1) {
+        perror("send");
+    }
     return 0;
 }
 
 int quit() {
-    // 
+    
 }
 
 int cwd(int fd, char *path) {
-    // 
+    char response[BUFFER_SIZE];
+
+    if (path == NULL) {
+        strcpy(response, "550 Requested action not taken. Path cannot be empty or null.\n");
+    }
+    if (strcmp(path, "./") == 0 || strcmp(path, "../") == 0) {
+        strcpy(response, "550 Requested action not taken. Path cannot be ./ or ../.\n");
+    }
+
+    if (send(fd, response, strlen(response), 0) == -1) {
+        perror("send");
+    }
+    return 0;
 }
 
 int cdup(int fd, char *initdir) {
