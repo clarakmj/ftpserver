@@ -201,6 +201,19 @@ int mode(int fd, char *tmode) {
 }
 
 int stru(int fd, char *fs) {
+    char response[BUFFER_SIZE];
+
+    if (strcasecmp(fs, "F") == 0) {
+        strcpy(response, "200 Command okay.\n");
+    } else if (strcasecmp(fs, "R") == 0 || strcasecmp(fs, "P") == 0) {
+        strcpy(response, "504 Command not implemented for that parameter.\n");
+    } else {
+        strcpy(response, "501 Syntax error in parameters or argument.\n");
+    }
+
+    if (send(fd, response, strlen(response), 0) == -1) {
+        perror("send");
+    }
     return 0;
 }
 
