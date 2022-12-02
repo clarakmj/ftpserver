@@ -95,7 +95,7 @@ void *command_handler(void *threadarg)
             break;
         case QUIT:
         // maybe if quit cmd, return -1 for exit(0)
-            quit();
+            quit(new_fd);
             break;
         case CWD:
             cwd(new_fd, argument);
@@ -158,7 +158,7 @@ int user(int fd, char *userid) {
     return 0;
 }
 
-int quit() {
+int quit(int fd) {
     char response[BUFFER_SIZE];
     strcpy(response, "221 Goodbye!");
 
@@ -166,7 +166,7 @@ int quit() {
         perror("send");
     }
     
-    close(new_fd);
+    close(fd);
     return -1;
 }
 
@@ -189,31 +189,31 @@ int cwd(int fd, char *path) {
 }
 
 int cdup(int fd, char *initdir) {
-    //
+    return 0;
 }
 
 int type(int fd, char *rtype) {
-    //
+    return 0;
 }
 
 int mode(int fd, char *tmode) {
-    //
+    return 0;
 }
 
 int stru(int fd, char *fs) {
-    // 
+    return 0;
 }
 
 int retr(char *filename) {
-    // 
+    return 0;
 }
 
 int pasv() {
-    // 
+    return 0;
 }
 
 int nlst(char *path) {
-    //
+    return 0;
 }
 
 int main(int argc, char **argv)
