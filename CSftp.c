@@ -193,6 +193,17 @@ int cdup(int fd, char *initdir) {
 }
 
 int type(int fd, char *rtype) {
+    char response[BUFFER_SIZE];
+
+    if (strcasecmp(rtype, "I") == 0 || strcasecmp(rtype, "A") == 0) {
+        strcpy(response, "200 Command okay.\n");
+    } else {
+        strcpy(response, "501 Syntax error in parameters or argument.\n");
+    }
+
+    if (send(fd, response, strlen(response), 0) == -1) {
+        perror("send");
+    }
     return 0;
 }
 
