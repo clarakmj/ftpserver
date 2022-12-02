@@ -189,6 +189,13 @@ int cwd(int fd, char *path) {
 }
 
 int cdup(int fd, char *initdir) {
+    char response[BUFFER_SIZE];
+
+    // TODO
+
+    if (send(fd, response, strlen(response), 0) == -1) {
+        perror("send");
+    }
     return 0;
 }
 
