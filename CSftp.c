@@ -101,6 +101,7 @@ void *command_handler(void *threadarg)
             cwd(new_fd, argument);
             break;
         case CDUP:
+        // TODO not sure where initialDir should be set
             getcwd(initialDir, BUFFER_SIZE);
             cdup(new_fd, initialDir);
             break;
@@ -191,7 +192,16 @@ int cwd(int fd, char *path) {
 int cdup(int fd, char *initdir) {
     char response[BUFFER_SIZE];
 
-    // TODO
+    char currentDir[BUFFER_SIZE];
+    getcwd(currentDir, BUFFER_SIZE);
+
+    if (strcmp(initdir, currentDir) == 0) {
+        strcpy(response, "550 Requested action not taken.");
+    } else if (chdir("..") == 0) {
+        strcpy(response, "200 Command okay.");
+    } else {
+        strcpy(response, "550 Requested action not taken.");
+    }
 
     if (send(fd, response, strlen(response), 0) == -1) {
         perror("send");
