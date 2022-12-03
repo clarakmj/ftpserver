@@ -35,9 +35,9 @@ int cdup(int fd, char *initdir);
 int type(int fd, char *rtype);
 int mode(int fd, char *tmode);
 int stru(int fd, char *fs);
-int retr(char *filename);
-int pasv();
-int nlst(char *path);
+int retr(int fd, char *filename);
+int pasv(int fd);
+int nlst(int fd, char *path);
 
 void sigchld_handler(int s)
 {
@@ -115,13 +115,13 @@ void *command_handler(void *threadarg)
             stru(new_fd, argument);
             break;
         case RETR:
-            retr(argument);
+            retr(new_fd, argument);
             break;
         case PASV:
-            pasv();
+            pasv(new_fd);
             break;
         case NLST:
-            nlst(argument);
+            nlst(new_fd, argument);
             break;
         default:
             strcpy(response, "500 Syntax error, command unrecognized.\n");
@@ -258,15 +258,24 @@ int stru(int fd, char *fs) {
     return 0;
 }
 
-int retr(char *filename) {
+int retr(int fd, char *filename) {
     return 0;
 }
 
-int pasv() {
+int pasv(int fd) {
     return 0;
 }
 
-int nlst(char *path) {
+int nlst(int fd, char *path) {
+    char response[BUFFER_SIZE];
+
+    if (path != NULL) {
+        strcpy(response, "504 Command not implemented for that parameter.");
+    }
+
+    if (send(fd, response, strlen(response), 0) == -1) {
+        perror("send");
+    }
     return 0;
 }
 
