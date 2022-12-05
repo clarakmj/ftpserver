@@ -28,16 +28,16 @@ char initialDir[BUFFER_SIZE];
 
 enum FTP_CMD {INVALID = -1, USER, QUIT, CWD, CDUP, TYPE, MODE, STRU, RETR, PASV, NLST};
 
-int user(int fd, char *userid);
-int quit();
-int cwd(int fd, char *path);
-int cdup(int fd, char *initdir);
-int type(int fd, char *rtype);
-int mode(int fd, char *tmode);
-int stru(int fd, char *fs);
-int retr(int fd, char *filename);
-int pasv(int fd);
-int nlst(int fd, char *path);
+void user(int fd, char *userid);
+void quit();
+void cwd(int fd, char *path);
+void cdup(int fd, char *initdir);
+void type(int fd, char *rtype);
+void mode(int fd, char *tmode);
+void stru(int fd, char *fs);
+void retr(int fd, char *filename);
+void pasv(int fd);
+void nlst(int fd, char *path);
 
 void sigchld_handler(int s)
 {
@@ -68,6 +68,7 @@ struct thread_data {
 
 struct thread_data thread_data_array[MAX_NUM_THREADS];
 
+// https://canvas.ubc.ca/courses/101882/pages/tutorial-10-c-server-programming?module_item_id=5116919
 void *command_handler(void *threadarg)
 {
   int thread_id;
@@ -79,13 +80,13 @@ void *command_handler(void *threadarg)
 
   char buf[BUFFER_SIZE];
   ssize_t read_size;
-  while((read_size = recv(new_fd , buf, BUFFER_SIZE - 1 , 0 )) > 0 ) {
+  while((read_size = recv(new_fd , buf, BUFFER_SIZE - 1 , 0 )) > 0 ) 
+  {
     buf[read_size] = '\0';
 
     enum FTP_CMD command;
     char argument[BUFFER_SIZE];
     char response[BUFFER_SIZE];
-
 
     // https://linuxhint.com/split-strings-delimiter-c/
     char *delim = " ";
@@ -99,14 +100,16 @@ void *command_handler(void *threadarg)
             if (strlen(token) == 1) {
                 strcpy(response, "500 Syntax error, command unrecognized.\n");
                 if (send(new_fd, response, sizeof(response), 0)) {
-                    perror("send");
+                    perror("send\n");
                 }
             } else {
                 // parse this first string for a command match
+                // token[strlen(token)-1] = '\0';
+                // printf("token: %s\n", token);
                 if (strcmp(token, "USER") == 0) {
-                    printf("%s\n","recognied USER string");
                     command = USER;
                 } else if (strcmp(token, "QUIT") == 0) {
+                    printf("IN QUIT\n");
                     command = QUIT;
                 } else if (strcmp(token, "CWD") == 0) {
                     command = CWD;
@@ -125,84 +128,119 @@ void *command_handler(void *threadarg)
                 } else {
                     strcpy(response, "500 Syntax error, command unrecognized.\n");
                     if (send(new_fd, response, sizeof(response), 0)) {
-                        perror("send");
+                        perror("send\n");
                     }
+                    break;
                 }
             }
         }
         if (count == 2) {
-            // TODO: check if token is empty, if so then return error
-
+            // is empty string
+            if (strlen(token) == 1) {
+                strcpy(response, "501 Syntax error in parameters or arguments.\n");
+                if (send(new_fd, response, sizeof(response), 0)) {
+                    perror("send\n");
+                }
+            }
             // otherwise set argument
-            strcpy(argument, token);
+            strncpy(argument, token, strlen(token)-1);
         }
         if (count > 2) {
-            // TODO: return error of too many arguments
+            // return error of too many arguments
+            strcpy(response, "501 Syntax error in parameters or arguments.\n");
+            if (send(new_fd, response, sizeof(response), 0)) {
+                perror("send\n");
+            }
         }
-        printf("Token no. %d : %s \n", count,token);
+        printf("Token no. %d : %s \n", count, token);
         token = strtok(NULL,delim);
         count++;
     }
 
-    // TODO implement commands
     switch(command) {
+        // USER <SP> <username> <CRLF>
         case USER:
+            if (strlen(argument) <= 0) 
+                continue;
             user(new_fd, argument);
             break;
+        // QUIT <CRLF>
         case QUIT:
         // maybe if quit cmd, return -1 for exit(0)
             quit(new_fd);
             break;
+        // CWD  <SP> <pathname> <CRLF>
         case CWD:
+            if (strlen(argument) <= 0) 
+                continue;
             cwd(new_fd, argument);
             break;
+        // CDUP <CRLF>
         case CDUP:
         // TODO not sure where initialDir should be set
             getcwd(initialDir, BUFFER_SIZE);
             cdup(new_fd, initialDir);
             break;
+        // TYPE <SP> <type-code> <CRLF>
         case TYPE:
+            if (strlen(argument) <= 0) 
+                continue;
             type(new_fd, argument);
             break;
+        // MODE <SP> <mode-code> <CRLF>
         case MODE:
+            if (strlen(argument) <= 0) 
+                continue;
             mode(new_fd, argument);
             break;
+        // STRU <SP> <structure-code> <CRLF>
         case STRU:
+            if (strlen(argument) <= 0) 
+                continue;
             stru(new_fd, argument);
             break;
+        // RETR <SP> <pathname> <CRLF>
         case RETR:
+            if (strlen(argument) <= 0) 
+                continue;
             retr(new_fd, argument);
             break;
+        // PASV <CRLF>
         case PASV:
             pasv(new_fd);
             break;
+        // NLST [<SP> <pathname>] <CRLF>
         case NLST:
+            if (strlen(argument) <= 0) 
+                continue;
             nlst(new_fd, argument);
             break;
         default:
             strcpy(response, "500 Syntax error, command unrecognized.\n");
             if (send(new_fd, response, sizeof(response), 0)) {
-                perror("send");
+                perror("send\n");
             }
             break;
     }
-    // https://canvas.ubc.ca/courses/101882/pages/tutorial-10-c-server-programming?module_item_id=5116919
-    printf("%s", buf);
-    char echo[BUFFER_SIZE + 6] = "echo: ";
-    strcat(echo, buf);
-    if (send(new_fd, echo, strlen(echo), 0) == -1)
-        perror("send");
-  }
-  
+
+    // Clear the buffer after running a command
+    memset(buf, '\0', sizeof(buf));
+    memset(argument, '\0', sizeof(argument));
+    memset(response, '\0', sizeof(response));
+}
+
+// char echo[BUFFER_SIZE + 6] = "echo: ";
+// strcat(echo, buf);
+// if (send(new_fd, echo, strlen(echo), 0) == -1)
+//     perror("send");
 
   close(new_fd);
   printf("%s\n", "finished child thread");
   pthread_exit(NULL);
 }
 
-int user(int fd, char *userid) {
+void user(int fd, char *userid) {
     char response[BUFFER_SIZE];
-    printf("received userid: %s|\n", userid);
     if (strcmp(userid, "cs317") == 0) {
         strcpy(response, "230 User logged in, proceed.\n");
     } else {
@@ -210,24 +248,22 @@ int user(int fd, char *userid) {
     }
 
     if (send(fd, response, strlen(response), 0) == -1) {
-        perror("send");
+        perror("send\n");
     }
-    return 0;
 }
 
-int quit(int fd) {
+void quit(int fd) {
     char response[BUFFER_SIZE];
     strcpy(response, "221 Goodbye!");
 
     if (send(fd, response, strlen(response), 0) == -1) {
-        perror("send");
+        perror("send\n");
     }
     
     close(fd);
-    return -1;
 }
 
-int cwd(int fd, char *path) {
+void cwd(int fd, char *path) {
     char response[BUFFER_SIZE];
 
     if (path == NULL) {
@@ -240,12 +276,11 @@ int cwd(int fd, char *path) {
     // TODO
 
     if (send(fd, response, strlen(response), 0) == -1) {
-        perror("send");
+        perror("send\n");
     }
-    return 0;
 }
 
-int cdup(int fd, char *initdir) {
+void cdup(int fd, char *initdir) {
     char response[BUFFER_SIZE];
 
     char currentDir[BUFFER_SIZE];
@@ -260,12 +295,11 @@ int cdup(int fd, char *initdir) {
     }
 
     if (send(fd, response, strlen(response), 0) == -1) {
-        perror("send");
+        perror("send\n");
     }
-    return 0;
 }
 
-int type(int fd, char *rtype) {
+void type(int fd, char *rtype) {
     char response[BUFFER_SIZE];
 
     if (strcasecmp(rtype, "I") == 0 || strcasecmp(rtype, "A") == 0) {
@@ -275,12 +309,11 @@ int type(int fd, char *rtype) {
     }
 
     if (send(fd, response, strlen(response), 0) == -1) {
-        perror("send");
+        perror("send\n");
     }
-    return 0;
 }
 
-int mode(int fd, char *tmode) {
+void mode(int fd, char *tmode) {
     char response[BUFFER_SIZE];
 
     if (strcasecmp(tmode, "S") == 0) {
@@ -292,12 +325,11 @@ int mode(int fd, char *tmode) {
     }
 
     if (send(fd, response, strlen(response), 0) == -1) {
-        perror("send");
+        perror("send\n");
     }
-    return 0;
 }
 
-int stru(int fd, char *fs) {
+void stru(int fd, char *fs) {
     char response[BUFFER_SIZE];
 
     if (strcasecmp(fs, "F") == 0) {
@@ -309,20 +341,17 @@ int stru(int fd, char *fs) {
     }
 
     if (send(fd, response, strlen(response), 0) == -1) {
-        perror("send");
+        perror("send\n");
     }
-    return 0;
 }
 
-int retr(int fd, char *filename) {
-    return 0;
+void retr(int fd, char *filename) {
 }
 
-int pasv(int fd) {
-    return 0;
+void pasv(int fd) {
 }
 
-int nlst(int fd, char *path) {
+void nlst(int fd, char *path) {
     char response[BUFFER_SIZE];
 
     if (path != NULL) {
@@ -330,9 +359,8 @@ int nlst(int fd, char *path) {
     }
 
     if (send(fd, response, strlen(response), 0) == -1) {
-        perror("send");
+        perror("send\n");
     }
-    return 0;
 }
 
 int main(int argc, char **argv)
@@ -423,7 +451,7 @@ int main(int argc, char **argv)
 
         new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
         if (new_fd == -1) {
-            perror("accept");
+            perror("accept\n");
             continue;
         }
 
