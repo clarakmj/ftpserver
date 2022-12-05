@@ -82,12 +82,68 @@ void *command_handler(void *threadarg)
   while((read_size = recv(new_fd , buf, BUFFER_SIZE - 1 , 0 )) > 0 ) {
     buf[read_size] = '\0';
 
-    // test code to echo back to client
-    // implement parsing of the buffer into commands and arguments here
-    char command;
-    char *argument; // TODO parse
-    // put big switch statement
+    enum FTP_CMD command;
+    char argument[BUFFER_SIZE];
     char response[BUFFER_SIZE];
+
+
+    // https://linuxhint.com/split-strings-delimiter-c/
+    char *delim = " ";
+    unsigned count = 0;
+    char *token = strtok(buf,delim);
+    count++;
+    while(token != NULL) {
+        // Count 1 - is the command
+        if (count == 1) {
+            // is empty string
+            if (strlen(token) == 1) {
+                strcpy(response, "500 Syntax error, command unrecognized.\n");
+                if (send(new_fd, response, sizeof(response), 0)) {
+                    perror("send");
+                }
+            } else {
+                // parse this first string for a command match
+                if (strcmp(token, "USER") == 0) {
+                    printf("%s\n","recognied USER string");
+                    command = USER;
+                } else if (strcmp(token, "QUIT") == 0) {
+                    command = QUIT;
+                } else if (strcmp(token, "CWD") == 0) {
+                    command = CWD;
+                } else if (strcmp(token, "TYPE") == 0) {
+                    command = TYPE;
+                } else if (strcmp(token, "MODE") == 0) {
+                    command = MODE;
+                } else if (strcmp(token, "STRU") == 0) {
+                    command = STRU;
+                } else if (strcmp(token, "RETR") == 0) {
+                    command = RETR;
+                } else if (strcmp(token, "PASV") == 0) {
+                    command = PASV;
+                } else if (strcmp(token, "NLST") == 0) {
+                    command = NLST;
+                } else {
+                    strcpy(response, "500 Syntax error, command unrecognized.\n");
+                    if (send(new_fd, response, sizeof(response), 0)) {
+                        perror("send");
+                    }
+                }
+            }
+        }
+        if (count == 2) {
+            // TODO: check if token is empty, if so then return error
+
+            // otherwise set argument
+            strcpy(argument, token);
+        }
+        if (count > 2) {
+            // TODO: return error of too many arguments
+        }
+        printf("Token no. %d : %s \n", count,token);
+        token = strtok(NULL,delim);
+        count++;
+    }
+
     // TODO implement commands
     switch(command) {
         case USER:
@@ -146,7 +202,7 @@ void *command_handler(void *threadarg)
 
 int user(int fd, char *userid) {
     char response[BUFFER_SIZE];
-
+    printf("received userid: %s|\n", userid);
     if (strcmp(userid, "cs317") == 0) {
         strcpy(response, "230 User logged in, proceed.\n");
     } else {
