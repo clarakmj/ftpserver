@@ -596,16 +596,18 @@ void pasv(int command_fd, int* pasvfd, int* data_fd) {
     send_response(response, pasvResp, strlen(pasvResp), command_fd);
 
     // main accept() loop
-    // while(1) {  
-    //     sin_size = sizeof their_addr;
+    while(1) {  
+        sin_size = sizeof their_addr;
 
-    //     *data_fd = accept(*pasvfd, (struct sockaddr *)&their_addr, &sin_size);
-    //     if (*data_fd == -1) {
-    //         perror("accept\n");
-    //         continue;
-    //     } 
-    // }
-    int pasvOn = 1;
+        *data_fd = accept(*pasvfd, (struct sockaddr *)&their_addr, &sin_size);
+        if (*data_fd == -1) {
+            perror("accept\n");
+            continue;
+        } else {
+            break;
+        } 
+    }
+    pasvOn = 1;
 
     // TODO: IMPLEMENT 30s TIMEOUT?
     // close() the pasvfd and data_fd
