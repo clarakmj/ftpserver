@@ -319,7 +319,7 @@ void cwd(int fd, char *path) {
 
     while (token != NULL) {
         if (strcmp(token, "..") == 0) {
-            strcpy(response, "550 Requested action not taken. Path cannot be ../.\n");
+            strcpy(response, "550 Requested action not taken. Path cannot contain ../.\n");
             break;
         }
         token = strtok(NULL, "/\n");
