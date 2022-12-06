@@ -654,9 +654,9 @@ void nlst(int fd) {
     }
 
     getcwd(cwd, BUFFER_SIZE);
-    // TODO: We need to send the directory listing back on the DATA connection after PASV is run
-    // TODO: send proper response code?
     printf("Printed %d directory entries\n", listFiles(fd, cwd));
+    char msg[] = "150 File status okay; about to open data connection.\n";
+    send_response(response, msg, sizeof(msg), command_fd);
 
     // Clear buffers
     memset(response, '\0', sizeof(response));
