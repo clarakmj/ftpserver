@@ -422,12 +422,39 @@ void stru(int fd, char *fs) {
 
 void retr(int fd, char *filename) {
     char response[BUFFER_SIZE];
+    FILE *f;
+    int dataRead;
+    char buffer[BUFFER_SIZE];
 
-    // if (pasvOn == 0) {
-    //     strcpy(response, "503 Bad sequence of commands.");
-    // } else {
+    if (pasvOn == 0) {
+        strcpy(response, "503 Bad sequence of commands.\n");
+    } else {
+        if (filename == NULL) {
+            strcpy(response, "501 Syntax error in parameters or argument.\n");
+        } else {
+            f = fopen(filename, "r");
+            if (f == NULL) {
+                strcpy(response, "550 Requested action not taken; file unavailable.\n");
+            } else {
+                strcpy(response, "125 Data connection already opened; transfer starting.\n");
+                if (send(fd, response, strlen(response), 0) == -1) {
+                    perror("send\n");
+                }
 
-    // }
+                while ((dataRead = fread(buffer, sizeof(char), BUFFER_SIZE, f)) > 0) {
+                    // TODO
+                    printf("");
+                }
+                memset(buffer, BUFFER_SIZE, sizeof(buffer));
+            }
+            fclose(f);
+            pasvOn = 0;
+            strcpy(response, "226 Closing data connection.\n");
+            if (send(fd, response, strlen(response), 0) == -1) {
+                perror("send\n");
+            }
+        }
+    }
 
     // Clear response buffer
     memset(response, '\0', sizeof(response));
