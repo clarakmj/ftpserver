@@ -139,7 +139,7 @@ struct thread_data {
 struct thread_data thread_data_array[MAX_NUM_THREADS];
 
 // Base server code adapted from https://beej.us/guide/bgnet/html/split/client-server-background.html#a-simple-stream-server
-void createConnection(int* sockfd, char* port, char* binded_info) {
+void createConnection(int* sockfd, char* initialPortChar, char* binded_info) {
     struct addrinfo hints, *servinfo, *p;
     struct sigaction sa;
     int yes=1;
@@ -150,31 +150,46 @@ void createConnection(int* sockfd, char* port, char* binded_info) {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // use my IP
 
-    // Gets address info using the port passed in, info then used to bind to socket later
-    if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return;
+    long temp = atol(initialPortChar);
+    unsigned int initialPort = (unsigned int)temp;
+
+    for (int i = initialPort; i < 8888; i++) {
+        char port[8];
+        sprintf(port, "%d", i);
+        // Gets address info using the port passed in, info then used to bind to socket later
+        if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
+            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+            return;
+        }
+
+        int binded = -1;
+
+        // loop through all the results and bind to the first we can
+        for(p = servinfo; p != NULL; p = p->ai_next) {
+            if ((*sockfd = socket(p->ai_family, p->ai_socktype,
+                    p->ai_protocol)) == -1) {
+                perror("server: socket");
+                continue;
+            }
+            if (setsockopt(*sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+                    sizeof(int)) == -1) {
+                perror("setsockopt");
+                exit(1);
+            }
+            if ((binded = bind(*sockfd, p->ai_addr, p->ai_addrlen)) == -1) {
+                // close(*sockfd);
+                perror("server: bind");
+                continue;
+            }
+            break;
+        }
+
+        if (binded != -1) {
+            break;
+        }
+
     }
 
-    // loop through all the results and bind to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((*sockfd = socket(p->ai_family, p->ai_socktype,
-                p->ai_protocol)) == -1) {
-            perror("server: socket");
-            continue;
-        }
-        if (setsockopt(*sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
-                sizeof(int)) == -1) {
-            perror("setsockopt");
-            exit(1);
-        }
-        if (bind(*sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            close(*sockfd);
-            perror("server: bind");
-            continue;
-        }
-        break;
-    }
 
     printf("binded port is %d\n", ntohs(get_in_port((struct sockaddr *)p->ai_addr)));
     return_addr(p->ai_addr, binded_info);
@@ -606,7 +621,7 @@ void pasv() {
     socklen_t sin_size;
     char response[BUFFER_SIZE];
     char pasvResp[53];
-    createConnection(&pasvfd, "1025", pasvResp);
+    createConnection(&pasvfd, "8000", pasvResp);
     // get and send the listening port to the client
     send_response(response, pasvResp, strlen(pasvResp), command_fd);
 
