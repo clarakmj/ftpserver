@@ -21,6 +21,7 @@
 #define BUFFER_SIZE 4096
 
 int pasvOn = 0;
+int pasvfd, data_fd;
 char initialDir[BUFFER_SIZE];
 
 enum FTP_CMD {INVALID = -1, USER, QUIT, CWD, CDUP, TYPE, MODE, STRU, RETR, PASV, NLST};
@@ -210,7 +211,7 @@ void *command_handler(void *threadarg)
     command_fd = my_data->new_fd;
 
     // Data Variables
-    int pasvfd, data_fd;  // listen on sock_fd, new connection on new_fd
+    // int pasvfd, data_fd;  // listen on sock_fd, new connection on new_fd
 
     // Send 220 message. Ready for login
     char readyMsg[] = "220 Service ready for new user.\n";
@@ -556,20 +557,22 @@ void retr(int fd, char *filename) {
         strcpy(response, "503 Bad sequence of commands.\n");
     } else {
         if (filename == NULL) {
-            strcpy(response, "501 Syntax error in parameters or argument.\n");
+            strcpy(response, "550 Requested action not taken; file unavailable.\n");
         } else {
             f = fopen(filename, "r");
             if (f == NULL) {
                 strcpy(response, "550 Requested action not taken; file unavailable.\n");
             } else {
-                strcpy(response, "125 Data connection already opened; transfer starting.\n");
+                strcpy(response, "150 File status okay; about to open data connection.\n");
                 if (send(fd, response, strlen(response), 0) == -1) {
                     perror("send\n");
                 }
 
                 while ((dataRead = fread(buffer, sizeof(char), BUFFER_SIZE, f)) > 0) {
-                    // TODO
-                    printf("");
+                    printf("Elements read: %d", dataRead);
+                    if (write(data_fd, buffer, dataRead) < 0) {
+                        printf("Error in sending data.\n");
+                    }
                 }
                 memset(buffer, BUFFER_SIZE, sizeof(buffer));
             }
