@@ -13,6 +13,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <poll.h>
 
 // #define PORT "3490"  // the port users will be connecting to
 
@@ -21,7 +22,7 @@
 #define BUFFER_SIZE 4096
 
 int pasvOn = 0;
-int pasvfd, data_fd;
+int command_fd, pasvfd, data_fd;
 char initialDir[BUFFER_SIZE];
 
 enum FTP_CMD {INVALID = -1, USER, QUIT, CWD, CDUP, TYPE, MODE, STRU, RETR, PASV, NLST};
@@ -34,7 +35,7 @@ void type(int fd, char *rtype);
 void mode(int fd, char *tmode);
 void stru(int fd, char *fs);
 void retr(int fd, char *filename);
-void pasv(int command_fd, int* pasvfd, int* data_fd);
+void pasv();
 void nlst(int fd);
 
 void send_response(char responseBuf[], char message[], size_t size, int new_fd) {
@@ -207,11 +208,10 @@ void *command_handler(void *threadarg)
     thread_id = my_data->thread_id;
 
     // Command connection variables
-    int command_fd;
     command_fd = my_data->new_fd;
 
     // Data Variables
-    // int pasvfd, data_fd;  // listen on sock_fd, new connection on new_fd
+    pthread_t data_thread;
 
     // Send 220 message. Ready for login
     char readyMsg[] = "220 Service ready for new user.\n";
@@ -274,130 +274,134 @@ void *command_handler(void *threadarg)
             printf("Token no. %d : %s \n", count, token);
             token = strtok(NULL,delim);
             count++;
+        }
+
+        switch(command) {
+            // USER <SP> <username> <CRLF>
+            case USER:
+                if (strlen(argument) <= 0) {
+                    send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
+                    break;
+                }
+                user(command_fd, argument, &loggedIn);
+                break;
+            // QUIT <CRLF>
+            case QUIT:
+            // maybe if quit cmd, return -1 for exit(0)
+                quit(command_fd);
+                break;
+            // CWD  <SP> <pathname> <CRLF>
+            case CWD:
+                if (loggedIn != 1) {
+                    send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
+                    break;
+                }
+                if (strlen(argument) <= 0) {
+                    send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
+                    break;
+                }
+                cwd(command_fd, argument);
+                break;
+            // CDUP <CRLF>
+            case CDUP:
+            // TODO not sure where initialDir should be set
+                if (loggedIn != 1) {
+                    send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
+                    break;
+                }
+                getcwd(initialDir, BUFFER_SIZE);
+                cdup(command_fd, initialDir);
+                break;
+            // TYPE <SP> <type-code> <CRLF>
+            case TYPE:
+                if (loggedIn != 1) {
+                    send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
+                    break;
+                }
+                if (strlen(argument) <= 0) {
+                    send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
+                    break;
+                }
+                type(command_fd, argument);
+                break;
+            // MODE <SP> <mode-code> <CRLF>
+            case MODE:
+                if (loggedIn != 1) {
+                    send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
+                    break;
+                }
+                if (strlen(argument) <= 0) {
+                    send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
+                    break;
+                }
+                mode(command_fd, argument);
+                break;
+            // STRU <SP> <structure-code> <CRLF>
+            case STRU:
+                if (loggedIn != 1) {
+                    send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
+                    break;
+                }
+                if (strlen(argument) <= 0) {
+                    send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
+                    break;
+                }
+                stru(command_fd, argument);
+                break;
+            // RETR <SP> <pathname> <CRLF>
+            case RETR:
+                if (loggedIn != 1) {
+                    send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
+                    break;
+                }
+                if (strlen(argument) <= 0) {
+                    send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
+                    break;
+                }
+                retr(command_fd, argument);
+                break;
+            // PASV <CRLF>
+            case PASV:
+                if (loggedIn != 1) {
+                    send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
+                    break;
+                }
+                pthread_create(&data_thread, NULL, (void*) pasv, NULL);
+                break;
+            // NLST [<SP> <pathname>] <CRLF>
+            case NLST:
+                if (loggedIn != 1) {
+                    send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
+                    break;
+                }
+                if (pasvOn != 1) {
+                    send_response(response, "503 Bad sequence of commands.\n", sizeof(response), command_fd);
+                    break;
+                }
+                if (strlen(argument) > 0) {
+                    send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
+                    break;
+                }
+                nlst(data_fd);
+                break;
+            default:
+                send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), command_fd);
+                break;
+        }
+
+        // Clear the buffer after running a command
+        memset(buf, '\0', sizeof(buf));
+        memset(argument, '\0', sizeof(argument));
+        memset(response, '\0', sizeof(response));
     }
 
-    switch(command) {
-        // USER <SP> <username> <CRLF>
-        case USER:
-            if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
-                break;
-            }
-            user(command_fd, argument, &loggedIn);
-            break;
-        // QUIT <CRLF>
-        case QUIT:
-        // maybe if quit cmd, return -1 for exit(0)
-            quit(command_fd);
-            break;
-        // CWD  <SP> <pathname> <CRLF>
-        case CWD:
-            if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
-                break;
-            }
-            if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
-                break;
-            }
-            cwd(command_fd, argument);
-            break;
-        // CDUP <CRLF>
-        case CDUP:
-        // TODO not sure where initialDir should be set
-            if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
-                break;
-            }
-            getcwd(initialDir, BUFFER_SIZE);
-            cdup(command_fd, initialDir);
-            break;
-        // TYPE <SP> <type-code> <CRLF>
-        case TYPE:
-            if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
-                break;
-            }
-            if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
-                break;
-            }
-            type(command_fd, argument);
-            break;
-        // MODE <SP> <mode-code> <CRLF>
-        case MODE:
-            if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
-                break;
-            }
-            if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
-                break;
-            }
-            mode(command_fd, argument);
-            break;
-        // STRU <SP> <structure-code> <CRLF>
-        case STRU:
-            if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
-                break;
-            }
-            if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
-                break;
-            }
-            stru(command_fd, argument);
-            break;
-        // RETR <SP> <pathname> <CRLF>
-        case RETR:
-            if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
-                break;
-            }
-            if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
-                break;
-            }
-            retr(command_fd, argument);
-            break;
-        // PASV <CRLF>
-        case PASV:
-            if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
-                break;
-            }
-            pasv(command_fd, &pasvfd, &data_fd);
-            break;
-        // NLST [<SP> <pathname>] <CRLF>
-        case NLST:
-            if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
-                break;
-            }
-            if (pasvOn != 1) {
-                send_response(response, "503 Bad sequence of commands.\n", sizeof(response), command_fd);
-                break;
-            }
-            if (strlen(argument) > 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
-                break;
-            }
-            nlst(data_fd);
-            break;
-        default:
-            send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), command_fd);
-            break;
+    if (data_thread != NULL) {
+        pthread_join(data_thread, NULL);
     }
 
-    // Clear the buffer after running a command
-    memset(buf, '\0', sizeof(buf));
-    memset(argument, '\0', sizeof(argument));
-    memset(response, '\0', sizeof(response));
-}
-
-  close(command_fd);
-  printf("%s\n", "finished child thread");
-  pthread_exit(NULL);
+    close(command_fd);
+    printf("%s\n", "finished child thread");
+    pthread_exit(NULL);
 }
 
 void user(int fd, char *userid, int* status) {
@@ -589,31 +593,47 @@ void retr(int fd, char *filename) {
     memset(response, '\0', sizeof(response));
 }
 
-void pasv(int command_fd, int* pasvfd, int* data_fd) {
+
+
+
+void pasv() {
     struct sockaddr_storage their_addr; // connector's address information
     socklen_t sin_size;
     char response[BUFFER_SIZE];
     char pasvResp[26];
-    createConnection(pasvfd, "1025", pasvResp);
+    createConnection(&pasvfd, "1025", pasvResp);
     // get and send the listening port to the client
     send_response(response, pasvResp, strlen(pasvResp), command_fd);
+
+    int rv; 
+    struct pollfd ufds[1];
+    ufds[0].fd = pasvfd;
+    ufds[0].events = POLLIN | POLLPRI;
+    rv = poll(ufds, 1, 5000);
+
+    if (rv == 0) {
+        char timeout[] = "425 Can't open data connection. No connection after 30s.\n";
+        send_response(response, timeout, strlen(timeout), command_fd);
+        memset(response, '\0', sizeof(response));
+        close(pasvfd);
+        pthread_exit(NULL);
+        return;
+    }
 
     // main accept() loop
     while(1) {  
         sin_size = sizeof their_addr;
 
-        *data_fd = accept(*pasvfd, (struct sockaddr *)&their_addr, &sin_size);
-        if (*data_fd == -1) {
+        data_fd = accept(pasvfd, (struct sockaddr *)&their_addr, &sin_size);
+        if (data_fd == -1) {
             perror("accept\n");
             continue;
         } else {
             break;
         } 
     }
-    pasvOn = 1;
 
-    // TODO: IMPLEMENT 30s TIMEOUT?
-    // close() the pasvfd and data_fd
+    pasvOn = 1;
 
     // Clear response buffer
     memset(response, '\0', sizeof(response));
