@@ -670,25 +670,27 @@ int main(int argc, char **argv)
         if (new_fd == -1) {
             perror("accept\n");
             continue;
+        } else {
+            inet_ntop(their_addr.ss_family,
+                get_in_addr((struct sockaddr *)&their_addr),
+                s, sizeof s);
+            printf("server: got connection from %s\n", s);
+
+            thread_data_array[current_thread_id].thread_id = current_thread_id;
+            thread_data_array[current_thread_id].new_fd = new_fd;
+            current_thread_count++;
+            pthread_create(&threads[current_thread_id], NULL, command_handler, (void *) &thread_data_array[current_thread_id]);
+
+            printf("%s\n", "end of main while loop");
+            current_thread_id++;
+            // current_thread_count--; 
         }
-
-        inet_ntop(their_addr.ss_family,
-            get_in_addr((struct sockaddr *)&their_addr),
-            s, sizeof s);
-        printf("server: got connection from %s\n", s);
-
-        thread_data_array[current_thread_id].thread_id = current_thread_id;
-        thread_data_array[current_thread_id].new_fd = new_fd;
-        current_thread_count++;
-        pthread_create(&threads[current_thread_id], NULL, command_handler, (void *) &thread_data_array[current_thread_id]);
-
-        pthread_join(threads[current_thread_id], NULL);
-        printf("%s\n", "end of main while loop");
-        close(new_fd);  // parent doesn't need this
-        current_thread_id++;
-        current_thread_count--; 
         
         // exit(0); // call this from somewhere if we need to quit the server
+    }
+
+    for (int i = 0; i <= current_thread_id; i++) {
+        pthread_join(threads[i], NULL);
     }
 
     printf("%s\n", "out of main while loop end of main");
