@@ -14,10 +14,6 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-/*
-** Base server code adapted from https://beej.us/guide/bgnet/html/split/client-server-background.html#a-simple-stream-server
-*/
-
 // #define PORT "3490"  // the port users will be connecting to
 
 #define BACKLOG 10   // how many pending connections queue will hold
@@ -480,6 +476,8 @@ void nlst(int fd) {
     }
 
     getcwd(cwd, BUFFER_SIZE);
+    // TODO: We need to send the directory listing back on the DATA connection after PASV is run
+    // TODO: send proper response code?
     printf("Printed %d directory entries\n", listFiles(fd, cwd));
 
     // Clear buffers
@@ -487,15 +485,11 @@ void nlst(int fd) {
     memset(cwd, '\0', sizeof(cwd));
 }
 
-int main(int argc, char **argv)
-{
-    int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
+// Base server code adapted from https://beej.us/guide/bgnet/html/split/client-server-background.html#a-simple-stream-server
+void createConnection(int* sockfd, char* port) {
     struct addrinfo hints, *servinfo, *p;
-    struct sockaddr_storage their_addr; // connector's address information
-    socklen_t sin_size;
     struct sigaction sa;
     int yes=1;
-    char s[INET6_ADDRSTRLEN];
     int rv;
 
     memset(&hints, 0, sizeof hints);
@@ -503,35 +497,28 @@ int main(int argc, char **argv)
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // use my IP
 
-    // Checks if the program is run with anything other than an additional argument
-    // Displays a usage method if so
-    if (argc != 2) {
-      usage(argv[0]);
-      return -1;
-    }
-
     // Gets address info using the port passed in, info then used to bind to socket later
-    if ((rv = getaddrinfo(NULL, argv[1], &hints, &servinfo)) != 0) {
+    if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return 1;
+        return;
     }
 
     // loop through all the results and bind to the first we can
     for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((sockfd = socket(p->ai_family, p->ai_socktype,
+        if ((*sockfd = socket(p->ai_family, p->ai_socktype,
                 p->ai_protocol)) == -1) {
             perror("server: socket");
             continue;
         }
 
-        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+        if (setsockopt(*sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
                 sizeof(int)) == -1) {
             perror("setsockopt");
             exit(1);
         }
 
-        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            close(sockfd);
+        if (bind(*sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+            close(*sockfd);
             perror("server: bind");
             continue;
         }
@@ -546,7 +533,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    if (listen(sockfd, BACKLOG) == -1) {
+    if (listen(*sockfd, BACKLOG) == -1) {
         perror("listen");
         exit(1);
     }
@@ -558,6 +545,23 @@ int main(int argc, char **argv)
         perror("sigaction");
         exit(1);
     }
+}
+
+int main(int argc, char **argv)
+{
+    int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
+    struct sockaddr_storage their_addr; // connector's address information
+    socklen_t sin_size;
+    char s[INET6_ADDRSTRLEN];
+
+    // Checks if the program is run with anything other than an additional argument
+    // Displays a usage method if so
+    if (argc != 2) {
+      usage(argv[0]);
+      return -1;
+    }
+
+    createConnection(&sockfd, argv[1]);
 
     printf("server: waiting for connections...\n");
 
