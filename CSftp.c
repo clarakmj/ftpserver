@@ -265,7 +265,6 @@ void *command_handler(void *threadarg)
     memset(buf, '\0', sizeof(buf));
     memset(argument, '\0', sizeof(argument));
     memset(response, '\0', sizeof(response));
-    printf("cleared buffer, argument, response arrays\n");
 }
 
   close(new_fd);
@@ -285,6 +284,9 @@ void user(int fd, char *userid, int* status) {
     if (send(fd, response, strlen(response), 0) == -1) {
         perror("send\n");
     }
+
+    // Clear response buffer
+    memset(response, '\0', sizeof(response));
 }
 
 void quit(int fd) {
@@ -296,6 +298,8 @@ void quit(int fd) {
     }
     
     close(fd);
+    // Clear response buffer
+    memset(response, '\0', sizeof(response));
 }
 
 void cwd(int fd, char *path) {
@@ -309,10 +313,15 @@ void cwd(int fd, char *path) {
     }
 
     // TODO
+    printf("cwd response: %s\n", response);
+    printf("same array? %p\n", response);
 
     if (send(fd, response, strlen(response), 0) == -1) {
         perror("send\n");
     }
+
+    // Clear response buffer
+    memset(response, '\0', sizeof(response));
 }
 
 void cdup(int fd, char *initdir) {
@@ -332,6 +341,9 @@ void cdup(int fd, char *initdir) {
     if (send(fd, response, strlen(response), 0) == -1) {
         perror("send\n");
     }
+
+    // Clear response buffer
+    memset(response, '\0', sizeof(response));
 }
 
 void type(int fd, char *rtype) {
@@ -346,6 +358,9 @@ void type(int fd, char *rtype) {
     if (send(fd, response, strlen(response), 0) == -1) {
         perror("send\n");
     }
+
+    // Clear response buffer
+    memset(response, '\0', sizeof(response));
 }
 
 void mode(int fd, char *tmode) {
@@ -362,6 +377,9 @@ void mode(int fd, char *tmode) {
     if (send(fd, response, strlen(response), 0) == -1) {
         perror("send\n");
     }
+
+    // Clear response buffer
+    memset(response, '\0', sizeof(response));
 }
 
 void stru(int fd, char *fs) {
@@ -378,12 +396,23 @@ void stru(int fd, char *fs) {
     if (send(fd, response, strlen(response), 0) == -1) {
         perror("send\n");
     }
+
+    // Clear response buffer
+    memset(response, '\0', sizeof(response));
 }
 
 void retr(int fd, char *filename) {
+    char response[BUFFER_SIZE];
+
+    // Clear response buffer
+    memset(response, '\0', sizeof(response));
 }
 
 void pasv(int fd) {
+    char response[BUFFER_SIZE];
+
+    // Clear response buffer
+    memset(response, '\0', sizeof(response));
 }
 
 void nlst(int fd, char *path) {
@@ -396,6 +425,9 @@ void nlst(int fd, char *path) {
     if (send(fd, response, strlen(response), 0) == -1) {
         perror("send\n");
     }
+
+    // Clear response buffer
+    memset(response, '\0', sizeof(response));
 }
 
 int main(int argc, char **argv)
