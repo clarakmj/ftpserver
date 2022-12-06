@@ -101,10 +101,13 @@ void return_addr(struct sockaddr *sa, char* pasvResp)
     unsigned count = 0;
     char *token = strtok(IPbuffer,delim);
     count++;
-    pasvResp[0] = '('; 
+
+    char partialMsg[] = "Entering Passive Mode ("; 
+    strcpy(pasvResp, partialMsg);
     char comma[] = ",";
     char bracket[] = ")";
     char newline[] = "\n";
+    char period[] = ".";
     while(token != NULL) {
         strcat(pasvResp, token);
         strcat(pasvResp, comma);
@@ -121,6 +124,7 @@ void return_addr(struct sockaddr *sa, char* pasvResp)
     strcat(pasvResp, comma);
     strcat(pasvResp, bottomBitChar);
     strcat(pasvResp, bracket);
+    strcat(pasvResp, period);
     strcat(pasvResp, newline);
     // printf("%x\n", pasvResp[strlen(pasvResp)-1]);
     // printf("%d\n", strlen(pasvResp));
@@ -600,7 +604,7 @@ void pasv() {
     struct sockaddr_storage their_addr; // connector's address information
     socklen_t sin_size;
     char response[BUFFER_SIZE];
-    char pasvResp[26];
+    char pasvResp[53];
     createConnection(&pasvfd, "1025", pasvResp);
     // get and send the listening port to the client
     send_response(response, pasvResp, strlen(pasvResp), command_fd);
@@ -609,7 +613,7 @@ void pasv() {
     struct pollfd ufds[1];
     ufds[0].fd = pasvfd;
     ufds[0].events = POLLIN | POLLPRI;
-    rv = poll(ufds, 1, 5000);
+    rv = poll(ufds, 1, 30000);
 
     if (rv == 0) {
         char timeout[] = "425 Can't open data connection. No connection after 30s.\n";
