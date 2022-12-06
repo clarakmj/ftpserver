@@ -415,6 +415,7 @@ void user(int fd, char *userid, int* status) {
         *status = 1;
     } else {
         strcpy(response, "530 Not logged in.\n");
+        *status = 0;
     }
 
     if (send(fd, response, strlen(response), 0) == -1) {
