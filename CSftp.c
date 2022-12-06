@@ -91,7 +91,7 @@ void *command_handler(void *threadarg)
   {
     buf[read_size] = '\0';
 
-    enum FTP_CMD command;
+    enum FTP_CMD command = INVALID;
     char argument[BUFFER_SIZE];
     char response[BUFFER_SIZE];
 
@@ -100,9 +100,6 @@ void *command_handler(void *threadarg)
     unsigned count = 0;
     char *token = strtok(buf,delim);
     count++;
-    if (token == NULL) {
-        send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
-    }
     while(token != NULL) {
         // Count 1 - is the command
         if (count == 1) {
@@ -235,18 +232,12 @@ void *command_handler(void *threadarg)
     memset(response, '\0', sizeof(response));
 }
 
-// char echo[BUFFER_SIZE + 6] = "echo: ";
-// strcat(echo, buf);
-// if (send(new_fd, echo, strlen(echo), 0) == -1)
-//     perror("send");
-
   close(new_fd);
   printf("%s\n", "finished child thread");
   pthread_exit(NULL);
 }
 
 void user(int fd, char *userid) {
-    printf("userid: %s\n", userid);
     char response[BUFFER_SIZE];
     if (strcmp(userid, "cs317") == 0) {
         strcpy(response, "230 User logged in, proceed.\n");
