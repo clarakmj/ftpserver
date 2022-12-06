@@ -28,7 +28,7 @@ char initialDir[BUFFER_SIZE];
 
 enum FTP_CMD {INVALID = -1, USER, QUIT, CWD, CDUP, TYPE, MODE, STRU, RETR, PASV, NLST};
 
-void user(int fd, char *userid);
+void user(int fd, char *userid, int* status);
 void quit();
 void cwd(int fd, char *path);
 void cdup(int fd, char *initdir);
@@ -78,35 +78,42 @@ struct thread_data thread_data_array[MAX_NUM_THREADS];
 // https://canvas.ubc.ca/courses/101882/pages/tutorial-10-c-server-programming?module_item_id=5116919
 void *command_handler(void *threadarg)
 {
-  int thread_id;
-  int new_fd;
-  struct thread_data *my_data;
-  my_data = (struct thread_data *) threadarg;
-  thread_id = my_data->thread_id;
-  new_fd = my_data->new_fd;
+    int thread_id;
+    int new_fd;
+    struct thread_data *my_data;
+    my_data = (struct thread_data *) threadarg;
+    thread_id = my_data->thread_id;
+    new_fd = my_data->new_fd;
 
-  char buf[BUFFER_SIZE];
-  ssize_t read_size;
-  while((read_size = recv(new_fd , buf, BUFFER_SIZE - 1 , 0 )) > 0 ) 
-  {
-    buf[read_size] = '\0';
+    char buf[BUFFER_SIZE];
+    ssize_t read_size;
 
-    enum FTP_CMD command = INVALID;
-    char argument[BUFFER_SIZE];
-    char response[BUFFER_SIZE];
+    int loggedIn = 0;
 
-    // https://linuxhint.com/split-strings-delimiter-c/
-    char delim[] =" \t\r\n\v\f";
-    unsigned count = 0;
-    char *token = strtok(buf,delim);
-    count++;
-    while(token != NULL) {
-        // Count 1 - is the command
-        if (count == 1) {
-            // is empty string
-            if (strlen(token) == 0) {
-                send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
-            } else {
+    // Send 220 message. Ready for login
+    char readyMsg[] = "220 Service ready for new user.\n";
+    if (send(new_fd, readyMsg, sizeof(readyMsg), 0)) { 
+                perror("send\n");
+    } 
+
+    while((read_size = recv(new_fd , buf, BUFFER_SIZE - 1 , 0 )) > 0 ) 
+    {
+        buf[read_size] = '\0';
+
+        enum FTP_CMD command = INVALID;
+        char argument[BUFFER_SIZE];
+        char response[BUFFER_SIZE];
+        // memset(argument, '\0', sizeof(argument));
+        // memset(response, '\0', sizeof(response));
+
+        // https://linuxhint.com/split-strings-delimiter-c/
+        char delim[] =" \t\r\n\v\f";
+        unsigned count = 0;
+        char *token = strtok(buf,delim);
+        count++;
+        while(token != NULL) {
+            // Count 1 - is the command
+            if (count == 1) {
                 // parse this first string for a command match
                 if (strcmp(token, "USER") == 0) {
                     command = USER;
@@ -126,27 +133,23 @@ void *command_handler(void *threadarg)
                     command = PASV;
                 } else if (strcmp(token, "NLST") == 0) {
                     command = NLST;
-                } else {
-                    send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
-                    break;
                 }
             }
-        }
-        if (count == 2) {
-            // is empty string
-            if (strlen(token) == 0) {
-                send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
+            if (count == 2) {
+                // is empty string
+                if (strlen(token) == 0) {
+                    send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
+                }
+                // otherwise set argument
+                strcpy(argument, token);
             }
-            // otherwise set argument
-            strcpy(argument, token);
-        }
-        if (count > 2) {
-            // return error of too many arguments
-            send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
-        }
-        printf("Token no. %d : %s \n", count, token);
-        token = strtok(NULL,delim);
-        count++;
+            if (count > 2) {
+                // return error of too many arguments
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+            }
+            printf("Token no. %d : %s \n", count, token);
+            token = strtok(NULL,delim);
+            count++;
     }
 
     switch(command) {
@@ -156,7 +159,7 @@ void *command_handler(void *threadarg)
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
                 break;
             }
-            user(new_fd, argument);
+            user(new_fd, argument, &loggedIn);
             break;
         // QUIT <CRLF>
         case QUIT:
@@ -165,6 +168,9 @@ void *command_handler(void *threadarg)
             break;
         // CWD  <SP> <pathname> <CRLF>
         case CWD:
+            if (loggedIn != 1) {
+                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+            }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
                 break;
@@ -174,11 +180,17 @@ void *command_handler(void *threadarg)
         // CDUP <CRLF>
         case CDUP:
         // TODO not sure where initialDir should be set
+            if (loggedIn != 1) {
+                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+            }
             getcwd(initialDir, BUFFER_SIZE);
             cdup(new_fd, initialDir);
             break;
         // TYPE <SP> <type-code> <CRLF>
         case TYPE:
+            if (loggedIn != 1) {
+                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+            }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
                 break;
@@ -187,6 +199,9 @@ void *command_handler(void *threadarg)
             break;
         // MODE <SP> <mode-code> <CRLF>
         case MODE:
+            if (loggedIn != 1) {
+                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+            }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
                 break;
@@ -195,6 +210,9 @@ void *command_handler(void *threadarg)
             break;
         // STRU <SP> <structure-code> <CRLF>
         case STRU:
+            if (loggedIn != 1) {
+                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+            }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
                 break;
@@ -203,6 +221,9 @@ void *command_handler(void *threadarg)
             break;
         // RETR <SP> <pathname> <CRLF>
         case RETR:
+            if (loggedIn != 1) {
+                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+            }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
                 break;
@@ -211,10 +232,16 @@ void *command_handler(void *threadarg)
             break;
         // PASV <CRLF>
         case PASV:
+            if (loggedIn != 1) {
+                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+            }
             pasv(new_fd);
             break;
         // NLST [<SP> <pathname>] <CRLF>
         case NLST:
+            if (loggedIn != 1) {
+                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+            }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
                 break;
@@ -237,10 +264,11 @@ void *command_handler(void *threadarg)
   pthread_exit(NULL);
 }
 
-void user(int fd, char *userid) {
+void user(int fd, char *userid, int* status) {
     char response[BUFFER_SIZE];
     if (strcmp(userid, "cs317") == 0) {
         strcpy(response, "230 User logged in, proceed.\n");
+        *status = 1;
     } else {
         strcpy(response, "530 Not logged in.\n");
     }
