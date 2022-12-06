@@ -304,15 +304,33 @@ void quit(int fd) {
 
 void cwd(int fd, char *path) {
     char response[BUFFER_SIZE];
+    char temp[BUFFER_SIZE];
+    char *token;
 
     if (path == NULL) {
         strcpy(response, "550 Requested action not taken. Path cannot be empty or null.\n");
-    }
-    if (strcmp(path, "./") == 0 || strcmp(path, "../") == 0) {
-        strcpy(response, "550 Requested action not taken. Path cannot be ./ or ../.\n");
+    } else {
+        strcpy(temp, path);
+        token = strtok(path, "/\t\r\n\v\f");
+        if (strcmp(token, "./") == 0 || strcmp(token, "../") == 0) {
+            strcpy(response, "550 Requested action not taken. Path cannot be ./ or ../.\n");
+        }
     }
 
-    // TODO
+    while (token != NULL) {
+        if (strcmp(token, "..") == 0) {
+            strcpy(response, "550 Requested action not taken. Path cannot be ../.\n");
+            break;
+        }
+        token = strtok(NULL, "/\n");
+    }
+
+    if (chdir(temp) == 0) {
+        strcpy(response, "250 Requested file action okay, completed.\n");
+    } else {
+        strcpy(response, "550 Requested action not taken; file unavailable.");
+    }
+
     printf("cwd response: %s\n", response);
     printf("same array? %p\n", response);
 
