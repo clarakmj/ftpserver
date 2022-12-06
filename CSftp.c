@@ -33,7 +33,7 @@ void type(int fd, char *rtype);
 void mode(int fd, char *tmode);
 void stru(int fd, char *fs);
 void retr(int fd, char *filename);
-void pasv(int fd);
+void pasv(int command_fd, int* pasvfd, int* data_fd);
 void nlst(int fd);
 
 void send_response(char responseBuf[], char message[], size_t size, int new_fd) {
@@ -64,6 +64,66 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+// https://stackoverflow.com/questions/2371910/how-to-get-the-port-number-from-struct-addrinfo-in-unix-c
+// get port, IPv4 or IPv6:
+in_port_t get_in_port(struct sockaddr *sa)
+{
+    if (sa->sa_family == AF_INET)
+        return (((struct sockaddr_in*)sa)->sin_port);
+
+    return (((struct sockaddr_in6*)sa)->sin6_port);
+}
+
+void return_addr(struct sockaddr *sa, char* pasvResp)
+{
+    // https://www.geeksforgeeks.org/c-program-display-hostname-ip-address/
+    char hostbuffer[256];
+    char *IPbuffer;
+    struct hostent *host_entry;
+    int hostname;
+  
+    // To retrieve hostname
+    hostname = gethostname(hostbuffer, sizeof(hostbuffer));
+  
+    // To retrieve host information
+    host_entry = gethostbyname(hostbuffer);
+  
+    // To convert an Internet network
+    // address into ASCII string
+    IPbuffer = inet_ntoa(*((struct in_addr*)
+                           host_entry->h_addr_list[0]));
+
+    in_port_t port = ntohs(get_in_port(sa));
+
+    char delim[] =".";
+    unsigned count = 0;
+    char *token = strtok(IPbuffer,delim);
+    count++;
+    pasvResp[0] = '('; 
+    char comma[] = ",";
+    char bracket[] = ")";
+    char newline[] = "\n";
+    while(token != NULL) {
+        strcat(pasvResp, token);
+        strcat(pasvResp, comma);
+        token = strtok(NULL,delim);
+        count++;
+    }
+    uint16_t topBits = port >> 8;
+    uint16_t bottomBits = port & 0xFF;
+    char topBitChar[4];
+    char bottomBitChar[4];
+    sprintf(topBitChar, "%d", topBits);
+    sprintf(bottomBitChar, "%d", bottomBits);
+    strcat(pasvResp, topBitChar);
+    strcat(pasvResp, comma);
+    strcat(pasvResp, bottomBitChar);
+    strcat(pasvResp, bracket);
+    strcat(pasvResp, newline);
+    // printf("%x\n", pasvResp[strlen(pasvResp)-1]);
+    // printf("%d\n", strlen(pasvResp));
+}
+
 // Multi-threading parameter passing from https://hpc-tutorials.llnl.gov/posix/example_code/hello_arg2.c
 struct thread_data {
     int thread_id;
@@ -72,28 +132,94 @@ struct thread_data {
 
 struct thread_data thread_data_array[MAX_NUM_THREADS];
 
+// Base server code adapted from https://beej.us/guide/bgnet/html/split/client-server-background.html#a-simple-stream-server
+void createConnection(int* sockfd, char* port, char* binded_info) {
+    struct addrinfo hints, *servinfo, *p;
+    struct sigaction sa;
+    int yes=1;
+    int rv;
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE; // use my IP
+
+    // Gets address info using the port passed in, info then used to bind to socket later
+    if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        return;
+    }
+
+    // loop through all the results and bind to the first we can
+    for(p = servinfo; p != NULL; p = p->ai_next) {
+        if ((*sockfd = socket(p->ai_family, p->ai_socktype,
+                p->ai_protocol)) == -1) {
+            perror("server: socket");
+            continue;
+        }
+        if (setsockopt(*sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+                sizeof(int)) == -1) {
+            perror("setsockopt");
+            exit(1);
+        }
+        if (bind(*sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+            close(*sockfd);
+            perror("server: bind");
+            continue;
+        }
+        break;
+    }
+
+    printf("binded port is %d\n", ntohs(get_in_port((struct sockaddr *)p->ai_addr)));
+    return_addr(p->ai_addr, binded_info);
+ 
+    freeaddrinfo(servinfo); // all done with this structure
+
+    if (p == NULL)  {
+        fprintf(stderr, "server: failed to bind\n");
+        exit(1);
+    }
+
+    if (listen(*sockfd, BACKLOG) == -1) {
+        perror("listen");
+        exit(1);
+    }
+
+    sa.sa_handler = sigchld_handler; // reap all dead processes
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+        perror("sigaction");
+        exit(1);
+    }
+}
+
 // https://canvas.ubc.ca/courses/101882/pages/tutorial-10-c-server-programming?module_item_id=5116919
 void *command_handler(void *threadarg)
 {
+    // State
+    char buf[BUFFER_SIZE];
+    int loggedIn = 0;
     int thread_id;
-    int new_fd;
     struct thread_data *my_data;
     my_data = (struct thread_data *) threadarg;
     thread_id = my_data->thread_id;
-    new_fd = my_data->new_fd;
 
-    char buf[BUFFER_SIZE];
-    ssize_t read_size;
+    // Command connection variables
+    int command_fd;
+    command_fd = my_data->new_fd;
 
-    int loggedIn = 0;
+    // Data Variables
+    int pasvfd, data_fd;  // listen on sock_fd, new connection on new_fd
 
     // Send 220 message. Ready for login
     char readyMsg[] = "220 Service ready for new user.\n";
-    if (send(new_fd, readyMsg, sizeof(readyMsg), 0)) { 
+    if (send(command_fd, readyMsg, sizeof(readyMsg), 0)) { 
                 perror("send\n");
     } 
 
-    while((read_size = recv(new_fd , buf, BUFFER_SIZE - 1 , 0 )) > 0 ) 
+    ssize_t read_size;
+    while((read_size = recv(command_fd , buf, BUFFER_SIZE - 1 , 0 )) > 0 ) 
     {
         buf[read_size] = '\0';
 
@@ -135,14 +261,14 @@ void *command_handler(void *threadarg)
             if (count == 2) {
                 // is empty string
                 if (strlen(token) == 0) {
-                    send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
+                    send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), command_fd);
                 }
                 // otherwise set argument
                 strcpy(argument, token);
             }
             if (count > 2) {
                 // return error of too many arguments
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
             }
             printf("Token no. %d : %s \n", count, token);
             token = strtok(NULL,delim);
@@ -153,112 +279,112 @@ void *command_handler(void *threadarg)
         // USER <SP> <username> <CRLF>
         case USER:
             if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
                 break;
             }
-            user(new_fd, argument, &loggedIn);
+            user(command_fd, argument, &loggedIn);
             break;
         // QUIT <CRLF>
         case QUIT:
         // maybe if quit cmd, return -1 for exit(0)
-            quit(new_fd);
+            quit(command_fd);
             break;
         // CWD  <SP> <pathname> <CRLF>
         case CWD:
             if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
                 break;
             }
             if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
                 break;
             }
-            cwd(new_fd, argument);
+            cwd(command_fd, argument);
             break;
         // CDUP <CRLF>
         case CDUP:
         // TODO not sure where initialDir should be set
             if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
                 break;
             }
             getcwd(initialDir, BUFFER_SIZE);
-            cdup(new_fd, initialDir);
+            cdup(command_fd, initialDir);
             break;
         // TYPE <SP> <type-code> <CRLF>
         case TYPE:
             if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
                 break;
             }
             if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
                 break;
             }
-            type(new_fd, argument);
+            type(command_fd, argument);
             break;
         // MODE <SP> <mode-code> <CRLF>
         case MODE:
             if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
                 break;
             }
             if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
                 break;
             }
-            mode(new_fd, argument);
+            mode(command_fd, argument);
             break;
         // STRU <SP> <structure-code> <CRLF>
         case STRU:
             if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
                 break;
             }
             if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
                 break;
             }
-            stru(new_fd, argument);
+            stru(command_fd, argument);
             break;
         // RETR <SP> <pathname> <CRLF>
         case RETR:
             if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
                 break;
             }
             if (strlen(argument) <= 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
                 break;
             }
-            retr(new_fd, argument);
+            retr(command_fd, argument);
             break;
         // PASV <CRLF>
         case PASV:
             if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
                 break;
             }
-            pasv(new_fd);
+            pasv(command_fd, &pasvfd, &data_fd);
             break;
         // NLST [<SP> <pathname>] <CRLF>
         case NLST:
             if (loggedIn != 1) {
-                send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
                 break;
             }
             if (pasvOn != 1) {
-                send_response(response, "503 Bad sequence of commands.\n", sizeof(response), new_fd);
+                send_response(response, "503 Bad sequence of commands.\n", sizeof(response), command_fd);
                 break;
             }
             if (strlen(argument) > 0) {
-                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), command_fd);
                 break;
             }
-            nlst(new_fd);
+            nlst(data_fd);
             break;
         default:
-            send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
+            send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), command_fd);
             break;
     }
 
@@ -268,7 +394,7 @@ void *command_handler(void *threadarg)
     memset(response, '\0', sizeof(response));
 }
 
-  close(new_fd);
+  close(command_fd);
   printf("%s\n", "finished child thread");
   pthread_exit(NULL);
 }
@@ -460,11 +586,33 @@ void retr(int fd, char *filename) {
     memset(response, '\0', sizeof(response));
 }
 
-void pasv(int fd) {
+void pasv(int command_fd, int* pasvfd, int* data_fd) {
+    struct sockaddr_storage their_addr; // connector's address information
+    socklen_t sin_size;
     char response[BUFFER_SIZE];
+    char pasvResp[26];
+    createConnection(pasvfd, "1025", pasvResp);
+    // get and send the listening port to the client
+    send_response(response, pasvResp, strlen(pasvResp), command_fd);
+
+    // main accept() loop
+    // while(1) {  
+    //     sin_size = sizeof their_addr;
+
+    //     *data_fd = accept(*pasvfd, (struct sockaddr *)&their_addr, &sin_size);
+    //     if (*data_fd == -1) {
+    //         perror("accept\n");
+    //         continue;
+    //     } 
+    // }
+    int pasvOn = 1;
+
+    // TODO: IMPLEMENT 30s TIMEOUT?
+    // close() the pasvfd and data_fd
 
     // Clear response buffer
     memset(response, '\0', sizeof(response));
+    memset(pasvResp, '\0', sizeof(pasvResp));
 }
 
 void nlst(int fd) {
@@ -485,74 +633,13 @@ void nlst(int fd) {
     memset(cwd, '\0', sizeof(cwd));
 }
 
-// Base server code adapted from https://beej.us/guide/bgnet/html/split/client-server-background.html#a-simple-stream-server
-void createConnection(int* sockfd, char* port) {
-    struct addrinfo hints, *servinfo, *p;
-    struct sigaction sa;
-    int yes=1;
-    int rv;
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE; // use my IP
-
-    // Gets address info using the port passed in, info then used to bind to socket later
-    if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return;
-    }
-
-    // loop through all the results and bind to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((*sockfd = socket(p->ai_family, p->ai_socktype,
-                p->ai_protocol)) == -1) {
-            perror("server: socket");
-            continue;
-        }
-
-        if (setsockopt(*sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
-                sizeof(int)) == -1) {
-            perror("setsockopt");
-            exit(1);
-        }
-
-        if (bind(*sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            close(*sockfd);
-            perror("server: bind");
-            continue;
-        }
-
-        break;
-    }
-
-    freeaddrinfo(servinfo); // all done with this structure
-
-    if (p == NULL)  {
-        fprintf(stderr, "server: failed to bind\n");
-        exit(1);
-    }
-
-    if (listen(*sockfd, BACKLOG) == -1) {
-        perror("listen");
-        exit(1);
-    }
-
-    sa.sa_handler = sigchld_handler; // reap all dead processes
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-        perror("sigaction");
-        exit(1);
-    }
-}
-
 int main(int argc, char **argv)
 {
     int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
     struct sockaddr_storage their_addr; // connector's address information
     socklen_t sin_size;
     char s[INET6_ADDRSTRLEN];
+    char binded_info[26];
 
     // Checks if the program is run with anything other than an additional argument
     // Displays a usage method if so
@@ -561,7 +648,7 @@ int main(int argc, char **argv)
       return -1;
     }
 
-    createConnection(&sockfd, argv[1]);
+    createConnection(&sockfd, argv[1], binded_info);
 
     printf("server: waiting for connections...\n");
 
