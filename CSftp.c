@@ -103,8 +103,6 @@ void *command_handler(void *threadarg)
         enum FTP_CMD command = INVALID;
         char argument[BUFFER_SIZE];
         char response[BUFFER_SIZE];
-        // memset(argument, '\0', sizeof(argument));
-        // memset(response, '\0', sizeof(response));
 
         // https://linuxhint.com/split-strings-delimiter-c/
         char delim[] =" \t\r\n\v\f";
@@ -121,6 +119,8 @@ void *command_handler(void *threadarg)
                     command = QUIT;
                 } else if (strcmp(token, "CWD") == 0) {
                     command = CWD;
+                } else if (strcmp(token, "CDUP") == 0) {
+                    command = CDUP;
                 } else if (strcmp(token, "TYPE") == 0) {
                     command = TYPE;
                 } else if (strcmp(token, "MODE") == 0) {
@@ -170,6 +170,7 @@ void *command_handler(void *threadarg)
         case CWD:
             if (loggedIn != 1) {
                 send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                break;
             }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
@@ -182,6 +183,7 @@ void *command_handler(void *threadarg)
         // TODO not sure where initialDir should be set
             if (loggedIn != 1) {
                 send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                break;
             }
             getcwd(initialDir, BUFFER_SIZE);
             cdup(new_fd, initialDir);
@@ -190,6 +192,7 @@ void *command_handler(void *threadarg)
         case TYPE:
             if (loggedIn != 1) {
                 send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                break;
             }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
@@ -201,6 +204,7 @@ void *command_handler(void *threadarg)
         case MODE:
             if (loggedIn != 1) {
                 send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                break;
             }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
@@ -212,6 +216,7 @@ void *command_handler(void *threadarg)
         case STRU:
             if (loggedIn != 1) {
                 send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                break;
             }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
@@ -223,6 +228,7 @@ void *command_handler(void *threadarg)
         case RETR:
             if (loggedIn != 1) {
                 send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                break;
             }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
@@ -234,6 +240,7 @@ void *command_handler(void *threadarg)
         case PASV:
             if (loggedIn != 1) {
                 send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                break;
             }
             pasv(new_fd);
             break;
@@ -241,6 +248,7 @@ void *command_handler(void *threadarg)
         case NLST:
             if (loggedIn != 1) {
                 send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
+                break;
             }
             if (strlen(argument) <= 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
@@ -257,6 +265,7 @@ void *command_handler(void *threadarg)
     memset(buf, '\0', sizeof(buf));
     memset(argument, '\0', sizeof(argument));
     memset(response, '\0', sizeof(response));
+    printf("cleared buffer, argument, response arrays\n");
 }
 
   close(new_fd);
@@ -313,11 +322,11 @@ void cdup(int fd, char *initdir) {
     getcwd(currentDir, BUFFER_SIZE);
 
     if (strcmp(initdir, currentDir) == 0) {
-        strcpy(response, "550 Requested action not taken.");
+        strcpy(response, "550 Requested action not taken.\n");
     } else if (chdir("..") == 0) {
         strcpy(response, "200 Command okay.");
     } else {
-        strcpy(response, "550 Requested action not taken.");
+        strcpy(response, "550 Requested action not taken.\n");
     }
 
     if (send(fd, response, strlen(response), 0) == -1) {
