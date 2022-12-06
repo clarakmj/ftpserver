@@ -24,6 +24,7 @@
 #define MAX_NUM_THREADS 10 // max number of child thread connections allowed
 #define BUFFER_SIZE 4096
 
+int pasvOn = 0;
 char initialDir[BUFFER_SIZE];
 
 enum FTP_CMD {INVALID = -1, USER, QUIT, CWD, CDUP, TYPE, MODE, STRU, RETR, PASV, NLST};
@@ -421,6 +422,12 @@ void stru(int fd, char *fs) {
 
 void retr(int fd, char *filename) {
     char response[BUFFER_SIZE];
+
+    // if (pasvOn == 0) {
+    //     strcpy(response, "503 Bad sequence of commands.");
+    // } else {
+
+    // }
 
     // Clear response buffer
     memset(response, '\0', sizeof(response));
