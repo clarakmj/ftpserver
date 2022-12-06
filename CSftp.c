@@ -39,6 +39,13 @@ void retr(int fd, char *filename);
 void pasv(int fd);
 void nlst(int fd, char *path);
 
+void send_response(char responseBuf[], char message[], size_t size, int new_fd) {
+    strcpy(responseBuf, message);
+    if (send(new_fd, responseBuf, size, 0)) { 
+        perror("send\n");
+    }
+}
+
 void sigchld_handler(int s)
 {
     // waitpid() might overwrite errno, so we save and restore it:
@@ -89,27 +96,24 @@ void *command_handler(void *threadarg)
     char response[BUFFER_SIZE];
 
     // https://linuxhint.com/split-strings-delimiter-c/
-    char *delim = " ";
+    char delim[] =" \t\r\n\v\f";
     unsigned count = 0;
     char *token = strtok(buf,delim);
     count++;
+    if (token == NULL) {
+        send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
+    }
     while(token != NULL) {
         // Count 1 - is the command
         if (count == 1) {
             // is empty string
-            if (strlen(token) == 1) {
-                strcpy(response, "500 Syntax error, command unrecognized.\n");
-                if (send(new_fd, response, sizeof(response), 0)) {
-                    perror("send\n");
-                }
+            if (strlen(token) == 0) {
+                send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
             } else {
                 // parse this first string for a command match
-                // token[strlen(token)-1] = '\0';
-                // printf("token: %s\n", token);
                 if (strcmp(token, "USER") == 0) {
                     command = USER;
                 } else if (strcmp(token, "QUIT") == 0) {
-                    printf("IN QUIT\n");
                     command = QUIT;
                 } else if (strcmp(token, "CWD") == 0) {
                     command = CWD;
@@ -126,31 +130,22 @@ void *command_handler(void *threadarg)
                 } else if (strcmp(token, "NLST") == 0) {
                     command = NLST;
                 } else {
-                    strcpy(response, "500 Syntax error, command unrecognized.\n");
-                    if (send(new_fd, response, sizeof(response), 0)) {
-                        perror("send\n");
-                    }
+                    send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
                     break;
                 }
             }
         }
         if (count == 2) {
             // is empty string
-            if (strlen(token) == 1) {
-                strcpy(response, "501 Syntax error in parameters or arguments.\n");
-                if (send(new_fd, response, sizeof(response), 0)) {
-                    perror("send\n");
-                }
+            if (strlen(token) == 0) {
+                send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
             }
             // otherwise set argument
-            strncpy(argument, token, strlen(token)-1);
+            strcpy(argument, token);
         }
         if (count > 2) {
             // return error of too many arguments
-            strcpy(response, "501 Syntax error in parameters or arguments.\n");
-            if (send(new_fd, response, sizeof(response), 0)) {
-                perror("send\n");
-            }
+            send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
         }
         printf("Token no. %d : %s \n", count, token);
         token = strtok(NULL,delim);
@@ -160,8 +155,10 @@ void *command_handler(void *threadarg)
     switch(command) {
         // USER <SP> <username> <CRLF>
         case USER:
-            if (strlen(argument) <= 0) 
-                continue;
+            if (strlen(argument) <= 0) {
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                break;
+            }
             user(new_fd, argument);
             break;
         // QUIT <CRLF>
@@ -171,8 +168,10 @@ void *command_handler(void *threadarg)
             break;
         // CWD  <SP> <pathname> <CRLF>
         case CWD:
-            if (strlen(argument) <= 0) 
-                continue;
+            if (strlen(argument) <= 0) {
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                break;
+            }
             cwd(new_fd, argument);
             break;
         // CDUP <CRLF>
@@ -183,26 +182,34 @@ void *command_handler(void *threadarg)
             break;
         // TYPE <SP> <type-code> <CRLF>
         case TYPE:
-            if (strlen(argument) <= 0) 
-                continue;
+            if (strlen(argument) <= 0) {
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                break;
+            }
             type(new_fd, argument);
             break;
         // MODE <SP> <mode-code> <CRLF>
         case MODE:
-            if (strlen(argument) <= 0) 
-                continue;
+            if (strlen(argument) <= 0) {
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                break;
+            }
             mode(new_fd, argument);
             break;
         // STRU <SP> <structure-code> <CRLF>
         case STRU:
-            if (strlen(argument) <= 0) 
-                continue;
+            if (strlen(argument) <= 0) {
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                break;
+            }
             stru(new_fd, argument);
             break;
         // RETR <SP> <pathname> <CRLF>
         case RETR:
-            if (strlen(argument) <= 0) 
-                continue;
+            if (strlen(argument) <= 0) {
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                break;
+            }
             retr(new_fd, argument);
             break;
         // PASV <CRLF>
@@ -211,15 +218,14 @@ void *command_handler(void *threadarg)
             break;
         // NLST [<SP> <pathname>] <CRLF>
         case NLST:
-            if (strlen(argument) <= 0) 
-                continue;
+            if (strlen(argument) <= 0) {
+                send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
+                break;
+            }
             nlst(new_fd, argument);
             break;
         default:
-            strcpy(response, "500 Syntax error, command unrecognized.\n");
-            if (send(new_fd, response, sizeof(response), 0)) {
-                perror("send\n");
-            }
+            send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
             break;
     }
 
@@ -240,6 +246,7 @@ void *command_handler(void *threadarg)
 }
 
 void user(int fd, char *userid) {
+    printf("userid: %s\n", userid);
     char response[BUFFER_SIZE];
     if (strcmp(userid, "cs317") == 0) {
         strcpy(response, "230 User logged in, proceed.\n");
