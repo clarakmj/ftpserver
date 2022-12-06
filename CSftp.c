@@ -251,6 +251,10 @@ void *command_handler(void *threadarg)
                 send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
                 break;
             }
+            if (pasvOn != 1) {
+                send_response(response, "503 Bad sequence of commands.\n", sizeof(response), new_fd);
+                break;
+            }
             if (strlen(argument) > 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
                 break;
