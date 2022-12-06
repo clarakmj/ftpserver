@@ -38,7 +38,7 @@ void mode(int fd, char *tmode);
 void stru(int fd, char *fs);
 void retr(int fd, char *filename);
 void pasv(int fd);
-void nlst(int fd, char *path);
+void nlst(int fd);
 
 void send_response(char responseBuf[], char message[], size_t size, int new_fd) {
     strcpy(responseBuf, message);
@@ -251,11 +251,11 @@ void *command_handler(void *threadarg)
                 send_response(response, "530 Not logged in.\n", sizeof(response), new_fd);
                 break;
             }
-            if (strlen(argument) <= 0) {
+            if (strlen(argument) > 0) {
                 send_response(response, "501 Syntax error in parameters or arguments.\n", sizeof(response), new_fd);
                 break;
             }
-            nlst(new_fd, argument);
+            nlst(new_fd);
             break;
         default:
             send_response(response, "500 Syntax error, command unrecognized.\n", sizeof(response), new_fd);
@@ -467,19 +467,20 @@ void pasv(int fd) {
     memset(response, '\0', sizeof(response));
 }
 
-void nlst(int fd, char *path) {
+void nlst(int fd) {
+    char cwd[BUFFER_SIZE];
     char response[BUFFER_SIZE];
-
-    if (path != NULL) {
-        strcpy(response, "504 Command not implemented for that parameter.");
-    }
 
     if (send(fd, response, strlen(response), 0) == -1) {
         perror("send\n");
     }
 
-    // Clear response buffer
+    getcwd(cwd, BUFFER_SIZE);
+    printf("Printed %d directory entries\n", listFiles(fd, cwd));
+
+    // Clear buffers
     memset(response, '\0', sizeof(response));
+    memset(cwd, '\0', sizeof(cwd));
 }
 
 int main(int argc, char **argv)
