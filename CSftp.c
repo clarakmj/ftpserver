@@ -34,7 +34,7 @@ void cwd(int fd, char *path);
 void cdup(int fd, char *initdir);
 void type(int fd, char *rtype);
 void mode(int fd, char *tmode);
-void stru(int fd, char *fs);
+void stru(int fd, char *filestructure);
 void retr(int fd, char *filename);
 void pasv();
 void nlst(int fd);
@@ -565,12 +565,12 @@ void mode(int fd, char *tmode) {
     memset(response, '\0', sizeof(response));
 }
 
-void stru(int fd, char *fs) {
+void stru(int fd, char *filestructure) {
     char response[BUFFER_SIZE];
 
-    if (strcasecmp(fs, "F") == 0) {
+    if (strcasecmp(filestructure, "F") == 0) {
         strcpy(response, "200 Command okay.\n");
-    } else if (strcasecmp(fs, "R") == 0 || strcasecmp(fs, "P") == 0) {
+    } else if (strcasecmp(filestructure, "R") == 0 || strcasecmp(filestructure, "P") == 0) {
         strcpy(response, "504 Command not implemented for that parameter.\n");
     } else {
         strcpy(response, "501 Syntax error in parameters or argument.\n");
@@ -586,7 +586,7 @@ void stru(int fd, char *fs) {
 
 void retr(int fd, char *filename) {
     char response[BUFFER_SIZE];
-    FILE *f;
+    FILE *filePtr;
     int dataRead;
     char buffer[BUFFER_SIZE];
 
@@ -596,8 +596,8 @@ void retr(int fd, char *filename) {
         if (filename == NULL) {
             strcpy(response, "550 Requested action not taken; file unavailable.\n");
         } else {
-            f = fopen(filename, "r");
-            if (f == NULL) {
+            filePtr = fopen(filename, "r");
+            if (filePtr == NULL) {
                 strcpy(response, "550 Requested action not taken; file unavailable.\n");
             } else {
                 strcpy(response, "150 File status okay; about to open data connection.\n");
@@ -605,7 +605,7 @@ void retr(int fd, char *filename) {
                     perror("send\n");
                 }
 
-                while ((dataRead = fread(buffer, sizeof(char), BUFFER_SIZE, f)) > 0) {
+                while ((dataRead = fread(buffer, sizeof(char), BUFFER_SIZE, filePtr)) > 0) {
                     printf("Elements read: %d", dataRead);
                     if (write(data_fd, buffer, dataRead) < 0) {
                         printf("Error in sending data.\n");
@@ -613,7 +613,7 @@ void retr(int fd, char *filename) {
                 }
                 memset(buffer, BUFFER_SIZE, sizeof(buffer));
             }
-            fclose(f);
+            fclose(filePtr);
             pasvOn = 0;
             strcpy(response, "226 Closing data connection.\n");
             if (send(fd, response, strlen(response), 0) == -1) {
