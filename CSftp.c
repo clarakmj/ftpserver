@@ -677,10 +677,6 @@ void nlst(int fd) {
     char cwd[BUFFER_SIZE];
     char response[BUFFER_SIZE];
 
-    if (send(fd, response, strlen(response), 0) == -1) {
-        perror("send\n");
-    }
-
     getcwd(cwd, BUFFER_SIZE);
     printf("Printed %d directory entries\n", listFiles(fd, cwd));
     char msg[] = "150 File status okay; about to open data connection.\n";
