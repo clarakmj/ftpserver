@@ -103,7 +103,7 @@ void return_addr(struct sockaddr *sa, char* pasvResp)
     char *token = strtok(IPbuffer,delim);
     count++;
 
-    char partialMsg[] = "Entering Passive Mode ("; 
+    char partialMsg[] = "227 Entering Passive Mode ("; 
     strcpy(pasvResp, partialMsg);
     char comma[] = ",";
     char bracket[] = ")";
