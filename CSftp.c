@@ -226,6 +226,7 @@ void *command_handler(void *threadarg)
     struct thread_data *my_data;
     my_data = (struct thread_data *) threadarg;
     thread_id = my_data->thread_id;
+    getcwd(initialDir, BUFFER_SIZE);
 
     // Command connection variables
     command_fd = my_data->new_fd;
@@ -338,7 +339,6 @@ void *command_handler(void *threadarg)
                     send_response(response, "530 Not logged in.\n", sizeof(response), command_fd);
                     break;
                 }
-                getcwd(initialDir, BUFFER_SIZE);
                 cdup(command_fd, initialDir);
                 break;
             // TYPE <SP> <type-code> <CRLF>
@@ -515,7 +515,7 @@ void cdup(int fd, char *initdir) {
     if (strcmp(initdir, currentDir) == 0) {
         strcpy(response, "550 Requested action not taken.\n");
     } else if (chdir("..") == 0) {
-        strcpy(response, "200 Command okay.");
+        strcpy(response, "200 Command okay.\n");
     } else {
         strcpy(response, "550 Requested action not taken.\n");
     }
