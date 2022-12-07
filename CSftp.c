@@ -494,7 +494,7 @@ void cwd(int fd, char *path) {
         if (chdir(temp) == 0) {
             strcpy(response, "250 Requested file action okay, completed.\n");
         } else {
-            strcpy(response, "550 Requested action not taken; file unavailable.");
+            strcpy(response, "550 Requested action not taken; file unavailable.\n");
         }
     }
 
