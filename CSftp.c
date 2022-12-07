@@ -475,7 +475,7 @@ void cwd(int fd, char *path) {
     } else {
         strcpy(temp, path);
         token = strtok(path, "/\t\r\n\v\f");
-        if (strncmp(token, ".", 1) == 0) {
+        if (strcmp(token, ".") == 0 || strcmp(token, "..") == 0 || strcmp(token, "./") == 0 || strcmp(token, "../") == 0) {
             strcpy(response, "550 Requested action not taken. Path cannot be ./ or ../.\n");
             performChdir = 0;
         }
@@ -504,6 +504,7 @@ void cwd(int fd, char *path) {
 
     // Clear response buffer
     memset(response, '\0', sizeof(response));
+    memset(temp, '\0', sizeof(temp));
 }
 
 void cdup(int fd, char *initdir) {
