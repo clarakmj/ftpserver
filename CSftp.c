@@ -748,38 +748,3 @@ int main(int argc, char **argv)
     printf("%s\n", "out of main while loop end of main");
     return 0;
 }
-
-
-// // Here is an example of how to use the above function. It also shows
-// // one how to get the arguments passed on the command line.
-// /* this function is run by the second thread */
-
-// void *inc_x()
-// {
-//   printf("x increment finished\n");
-//   return NULL;
-// }
-
-// int main(int argc, char **argv) {
-
-//     // This is some sample code feel free to delete it
-//     // This is the main program for the thread version of nc
-
-//     int i;
-//     pthread_t child;
-//     pthread_create(&child, NULL, inc_x, NULL);
-    
-//     // Check the command line arguments
-//     if (argc != 2) {
-//       usage(argv[0]);
-//       return -1;
-//     }
-
-//     // This is how to call the function in dir.c to get a listing of a directory.
-//     // It requires a file descriptor, so in your code you would pass in the file descriptor 
-//     // returned for the ftp server's data connection
-    
-//     printf("Printed %d directory entries\n", listFiles(1, "."));
-//     return 0;
-
-// }
