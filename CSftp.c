@@ -14,6 +14,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <poll.h>
+#include <ctype.h>
 
 // #define PORT "3490"  // the port users will be connecting to
 
@@ -255,6 +256,15 @@ void *command_handler(void *threadarg)
         while(token != NULL) {
             // Count 1 - is the command
             if (count == 1) {
+                int j = 0;
+                char ch;
+            
+                while (token[j]) {
+                    ch = token[j];
+                    token[j] = toupper(ch);
+                    j++;
+                }
+
                 // parse this first string for a command match
                 if (strcmp(token, "USER") == 0) {
                     command = USER;
