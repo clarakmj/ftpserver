@@ -28,11 +28,11 @@ information to this file and then commit and push this file.
 
 
 STUDENT  1
-Name :
-St. No:
-CWL Id :
+Name : Clara Kim
+St. No: 51832228
+CWL Id : clarakmj
 
 STUDENT  2
-Name :
-St. No:
-CWL Id :
+Name : Richard Chen
+St. No: 45564895
+CWL Id : rchen2
