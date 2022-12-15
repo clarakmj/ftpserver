@@ -1,4 +1,5 @@
 Total before late penalty: [40/42]
+    ***Total after 100.0% late penalty is 0.0
 
 NOTE: in the marking report something left blank (e.g.  [ /6])
 typically means that you received full marks for that item.
@@ -179,3 +180,4 @@ algorithms,
 
 structure and system calls.
 1 mark - Poor design in multiple situations and major improvement is possible.
+
