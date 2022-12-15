@@ -1,9 +1,9 @@
-Total before late penalty: [/42]
+Total before late penalty: [40/42]
 
 NOTE: in the marking report something left blank (e.g.  [ /6])
 typically means that you received full marks for that item.
 
-Functionality: [/35]
+Functionality: [33/35]
 
 [/1] Working makefile
 [/1] Accepts port to listen on
@@ -52,13 +52,15 @@ RETR
 
 Error checking
 [/1] Responds with error 500 for unsupported commands
-[/1] Responds properly if a command like type or struct doesn't have the proper number of arguments
+[0/1] Responds properly if a command like type or struct doesn't have the proper number of arguments
+respond 501 and 200 at the same time when entering "type A S"
 [/1] Accept in RETR/NLST will time out
 [/1] Can handle client closing command connection without sending
 
 Quit
 [/1] Handles case when the amount of data to be written isn't actually written (short writes)
-[/1] Properly cleans things up so there are no memory leaks.
+[0/1] Properly cleans things up so there are no memory leaks.
+did not pass valgrind
 
 ---------------------------- MANUAL MARKING -------------------------
 
@@ -67,7 +69,7 @@ overall structure and programming involved in programming.  Please carefully
 review the documentation in your program.  Please pay careful attention to the
 readability criteria.
 
-Broad Marking Criteria :                     [/7]
+Broad Marking Criteria :                     [7/7]
 See below for a detailed description of this marking criteria
 Readability        [/3]
 Code Documentation [/2]
